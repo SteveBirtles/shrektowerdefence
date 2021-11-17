@@ -19,24 +19,43 @@ const std::string tileFiles[TILE_COUNT]{
     "Water.png",
 };
 
-const int MAP_WIDTH = 40;
-const int MAP_HEIGHT = 20;
-int map[MAP_WIDTH][MAP_HEIGHT];
-
 void loadTiles() {
   for (auto i = 0; i < TILE_COUNT; i++) {
-    tileSprites[i] = new olc::Sprite("./tiles/" + tileFiles[i]);
+    tileSprites[i] = new olc::Sprite("./Tiles/" + tileFiles[i]);
     tileDecals[i] = new olc::Decal(tileSprites[i]);
   }
 }
 
+const int TOWER_SIZE = 32;
+const int TOWER_COUNT = 7;
+olc::Sprite* towerSprites[TOWER_COUNT];
+olc::Decal* towerDecals[TOWER_COUNT];
+const std::string towerFiles[TOWER_COUNT]{
+    "donkey.png",        "Dragon.png",          "gingerbreadSpriteSheet.png",
+    "Puss_in_boots.png", "rumpelstiltskin.png", "shrek.png",
+    "smashMouth.png",
+};
+
+void loadTowers() {
+  for (auto i = 0; i < TOWER_COUNT; i++) {
+    towerSprites[i] = new olc::Sprite("./Towers/" + towerFiles[i]);
+    towerDecals[i] = new olc::Decal(towerSprites[i]);
+  }
+}
+
+const int MAP_WIDTH = 40;
+const int MAP_HEIGHT = 20;
+int map[MAP_WIDTH][MAP_HEIGHT];
+
 void resetMap() {
   for (auto x = 0; x < MAP_WIDTH; x++) {
     for (auto y = 0; y < MAP_HEIGHT; y++) {
-      map[x][y] = 10;  // mud.png
+      map[x][y] = 10;  // Mud.png
     }
   }
 }
+
+const int ANIMATION_RATE = 6;
 
 class Game : public olc::PixelGameEngine {
  public:
@@ -46,11 +65,14 @@ class Game : public olc::PixelGameEngine {
   float timer = 0;
   int frames = 0;
   int fps;
-  int currentTile = 0;
+  int currentTile = 2;  // Grass1.png
+
+  float animationTimer = 0;
 
  public:
   bool OnUserCreate() override {
     loadTiles();
+    loadTowers();
     resetMap();
     return true;
   }
@@ -106,18 +128,41 @@ class Game : public olc::PixelGameEngine {
 
     for (auto x = 0; x < MAP_WIDTH; x++) {
       for (auto y = 0; y < MAP_HEIGHT; y++) {
-        auto tileIndex = map[x][y];
-        auto tilePosition = olc::vi2d{x * TILE_SIZE, y * TILE_SIZE};
-        DrawDecal(tilePosition, tileDecals[tileIndex]);
+        auto index = map[x][y];
+        auto position = olc::vi2d{x * TILE_SIZE, y * TILE_SIZE};
+        DrawDecal(position, tileDecals[index]);
       }
     }
 
-    auto indicatorPosition = olc::vi2d{20, WINDOW_HEIGHT - TILE_SIZE - 20};
-    DrawDecal(indicatorPosition, tileDecals[currentTile]);
+    auto position = olc::vi2d{20, WINDOW_HEIGHT - TILE_SIZE - 20};
+    DrawDecal(position, tileDecals[currentTile]);
+
+    SetPixelMode(olc::Pixel::MASK);
+
+    animationTimer += GetElapsedTime();
+    for (auto t = 0; t < TOWER_COUNT; t++) {
+      auto frameCount = towerSprites[t]->width / TOWER_SIZE;
+      auto frame = int(animationTimer * ANIMATION_RATE) % frameCount;
+      auto position = olc::vi2d{100 + t * 50, WINDOW_HEIGHT - 50};
+      auto size = olc::vi2d{TOWER_SIZE, TOWER_SIZE};
+      auto offset = olc::vi2d{TOWER_SIZE * frame, 0};
+
+      DrawPartialDecal(position, size, towerDecals[t], offset, size);
+
+      auto topLeft = position + olc::vi2d{-2, -2};
+      auto topRight = position + olc::vi2d{TOWER_SIZE + 4, -2};
+      auto bottomLeft = position + olc::vi2d{-2, TOWER_SIZE + 4};
+      auto bottomRight = position + olc::vi2d{TOWER_SIZE + 4, TOWER_SIZE + 4};
+
+      DrawLineDecal(topLeft, topRight);
+      DrawLineDecal(topRight, bottomRight);
+      DrawLineDecal(bottomRight, bottomLeft);
+      DrawLineDecal(bottomLeft, topLeft);
+    }
 
     if (fps > 0) {
-      auto fpsPosition = olc::vi2d(WINDOW_WIDTH - 70, WINDOW_HEIGHT - 70);
-      DrawStringDecal(fpsPosition, "FPS " + std::to_string(fps));
+      auto position = olc::vi2d(WINDOW_WIDTH - 70, WINDOW_HEIGHT - 70);
+      DrawStringDecal(position, "FPS " + std::to_string(fps));
     }
   }
 
