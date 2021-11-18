@@ -1,5 +1,6 @@
 #define OLC_PGE_APPLICATION
 #include <string>
+#include <vector>
 
 #include "olcPixelGameEngine.h"
 
@@ -43,6 +44,13 @@ void loadTowers() {
   }
 }
 
+struct Tower {
+  int x;
+  int y;
+  int towerNumber;
+};
+std::vector<Tower*> towers;
+
 const int MAP_WIDTH = 40;
 const int MAP_HEIGHT = 20;
 int map[MAP_WIDTH][MAP_HEIGHT];
@@ -66,7 +74,6 @@ class Game : public olc::PixelGameEngine {
   int frames = 0;
   int fps;
   int currentTile = 2;  // Grass1.png
-
   float animationTimer = 0;
 
  public:
@@ -74,6 +81,12 @@ class Game : public olc::PixelGameEngine {
     loadTiles();
     loadTowers();
     resetMap();
+
+    for (auto i = 0; i < 40; i++) {
+      towers.push_back(new Tower{rand() % MAP_WIDTH, rand() % MAP_HEIGHT,
+                                 rand() % TOWER_COUNT});
+    }
+
     return true;
   }
 
@@ -85,6 +98,8 @@ class Game : public olc::PixelGameEngine {
       frames = 0;
       timer -= 1;
     }
+    animationTimer += fElapsedTime;
+
     inputs();
     outputs();
 
@@ -139,25 +154,14 @@ class Game : public olc::PixelGameEngine {
 
     SetPixelMode(olc::Pixel::MASK);
 
-    animationTimer += GetElapsedTime();
-    for (auto t = 0; t < TOWER_COUNT; t++) {
-      auto frameCount = towerSprites[t]->width / TOWER_SIZE;
+    for (auto tower : towers) {
+      auto index = tower->towerNumber;
+      auto frameCount = towerSprites[index]->width / TOWER_SIZE;
       auto frame = int(animationTimer * ANIMATION_RATE) % frameCount;
-      auto position = olc::vi2d{100 + t * 50, WINDOW_HEIGHT - 50};
+      auto position = olc::vi2d{tower->x * TILE_SIZE, tower->y * TILE_SIZE};
       auto size = olc::vi2d{TOWER_SIZE, TOWER_SIZE};
       auto offset = olc::vi2d{TOWER_SIZE * frame, 0};
-
-      DrawPartialDecal(position, size, towerDecals[t], offset, size);
-
-      auto topLeft = position + olc::vi2d{-2, -2};
-      auto topRight = position + olc::vi2d{TOWER_SIZE + 4, -2};
-      auto bottomLeft = position + olc::vi2d{-2, TOWER_SIZE + 4};
-      auto bottomRight = position + olc::vi2d{TOWER_SIZE + 4, TOWER_SIZE + 4};
-
-      DrawLineDecal(topLeft, topRight);
-      DrawLineDecal(topRight, bottomRight);
-      DrawLineDecal(bottomRight, bottomLeft);
-      DrawLineDecal(bottomLeft, topLeft);
+      DrawPartialDecal(position, size, towerDecals[index], offset, size);
     }
 
     if (fps > 0) {
