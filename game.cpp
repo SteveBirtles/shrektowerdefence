@@ -15,6 +15,12 @@ const int MAP_HEIGHT = 20;
 const int MOB_SIZE = 32;
 const int MOB_COUNT = 6;
 
+const int TOWER_SIZE = 32;
+const int TOWER_COUNT = 7;
+
+const int PROJECTILE_SIZE = 16;
+const int PROJECTILE_COUNT = 9;
+
 /* Main game class */
 
 class Game : public olc::PixelGameEngine {
@@ -28,7 +34,7 @@ class Game : public olc::PixelGameEngine {
 
   int currentTile = 2;  // Grass1.png
 
-  float spawnDelay = 2; 
+  float spawnDelay = 2;
   float spawnTimer = spawnDelay;
 
   enum class MODE { EDIT, PLAY };
@@ -48,13 +54,6 @@ class Game : public olc::PixelGameEngine {
       "Water4.png", "Water5.png",      "Water6.png", "Water7.png", "Water8.png",
       "Water.png",
   };
-
-  void loadTileGraphics() {
-    for (auto i = 0; i < TILE_COUNT; i++) {
-      tileSprites[i] = new olc::Sprite("./Tiles/" + tileFiles[i]);
-      tileDecals[i] = new olc::Decal(tileSprites[i]);
-    }
-  }
 
   /* The map that stores all the tiles and also the labels */
 
@@ -116,13 +115,6 @@ class Game : public olc::PixelGameEngine {
       "lordfarquaad.png", "Pied piper.png",     "Pied piper_s mice.png",
   };
 
-  void loadMobGraphics() {
-    for (auto i = 0; i < MOB_COUNT; i++) {
-      mobSprites[i] = new olc::Sprite("./Baddies/" + mobFiles[i]);
-      mobDecals[i] = new olc::Decal(mobSprites[i]);
-    }
-  }
-
   /* Mob 'struct' - just like a class but all attributes
      and methods are automatically public. */
 
@@ -153,13 +145,79 @@ class Game : public olc::PixelGameEngine {
 
   std::vector<Mob> mobs;
 
+  /* The graphics for towers */
+
+  olc::Sprite* towerSprites[TOWER_COUNT];
+  olc::Decal* towerDecals[TOWER_COUNT];
+
+  const std::string towerFiles[TOWER_COUNT]{
+      "donkey.png",        "Dragon.png",          "gingerbreadSpriteSheet.png",
+      "Puss_in_boots.png", "rumpelstiltskin.png", "shrek.png",
+      "smashMouth.png",
+  };
+
+  struct Tower {
+    int type;
+    int x;
+    int y;
+    float frame;
+    float reloadTimer;
+    float reloadDelay;
+    int projectileType;
+    Tower(int givenType, int givenX, int givenY, int givenDelay,
+          int givenProjectile) {
+      type = givenType;
+      x = givenX;
+      y = givenY;
+      frame = 0;
+      reloadTimer = givenDelay;
+      reloadDelay = givenDelay;
+      projectileType = givenProjectile;
+    }
+  };
+
+  /* Vector (dynamic list) of mobs */
+
+  std::vector<Tower> towers;
+
+  /* The graphics for projectiles */
+
+  olc::Sprite* projectileSprites[PROJECTILE_COUNT];
+  olc::Decal* projectileDecals[PROJECTILE_COUNT];
+
+  const std::string projectileFiles[PROJECTILE_COUNT]{
+      "Boot_throw.png", "donkeydragon.png", "fireball.png",
+      "Javelin.png",    "lollipop.png",     "magic.png",
+      "mirror.png",     "onion.png",        "smashmMouthSpit.png",
+  };
+
+  struct Projectile {
+    int type;
+    olc::vf2d position;
+    olc::vf2d velocity;
+    float frame;
+    Projectile(int givenType, olc::vf2d givenPosition,
+               olc::vf2d givenVelocity) {
+      type = givenType;
+      position = givenPosition;
+      velocity = givenVelocity;
+      frame = 0;
+    }
+  };
+
+  std::vector<Projectile> projectiles;
+
  public:
   bool OnUserCreate() override {
     /*
       Load resources here
     */
-    loadTileGraphics();
-    loadMobGraphics();
+    loadGraphics(TILE_COUNT, tileSprites, tileDecals, tileFiles, "./Tiles/");
+    loadGraphics(MOB_COUNT, mobSprites, mobDecals, mobFiles, "./Baddies/");
+    loadGraphics(TOWER_COUNT, towerSprites, towerDecals, towerFiles,
+                 "./Towers/");
+    loadGraphics(PROJECTILE_COUNT, projectileSprites, projectileDecals,
+                 projectileFiles, "./Projectiles/");
     resetMap();
     loadMap();
     return true;
@@ -182,6 +240,24 @@ class Game : public olc::PixelGameEngine {
       return false;
     } else {
       return true;
+    }
+  }
+
+  /* Functions for loading and deleting graphics (resource management)
+   */
+
+  void loadGraphics(int count, olc::Sprite* sprites[], olc::Decal* decals[],
+                    const std::string files[], std::string path) {
+    for (auto i = 0; i < count; i++) {
+      sprites[i] = new olc::Sprite(path + files[i]);
+      decals[i] = new olc::Decal(sprites[i]);
+    }
+  }
+
+  void deleteGraphics(int count, olc::Sprite* sprites[], olc::Decal* decals[]) {
+    for (auto i = 0; i < count; i++) {
+      delete sprites[i];
+      delete decals[i];
     }
   }
 
@@ -374,15 +450,11 @@ class Game : public olc::PixelGameEngine {
 
   bool OnUserDestroy() override {
     std::cout << "Closing game" << std::endl;
-    for (auto i = 0; i < TILE_COUNT; i++) {
-      delete tileSprites[i];
-      delete tileDecals[i];
-    }
-    for (auto i = 0; i < MOB_COUNT; i++) {
-      delete mobSprites[i];
-      delete mobDecals[i];
-    }
     saveMap();
+    deleteGraphics(TILE_COUNT, tileSprites, tileDecals);
+    deleteGraphics(MOB_COUNT, mobSprites, mobDecals);
+    deleteGraphics(TOWER_COUNT, towerSprites, towerDecals);
+    deleteGraphics(PROJECTILE_COUNT, projectileSprites, projectileDecals);
     return true;
   }
 };
