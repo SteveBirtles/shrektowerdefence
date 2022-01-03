@@ -1,6 +1,8 @@
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
 
+/* Game constants */
+
 const int WINDOW_WIDTH = 1280;
 const int WINDOW_HEIGHT = 720;
 
@@ -13,44 +15,23 @@ const int MAP_HEIGHT = 20;
 const int MOB_SIZE = 32;
 const int MOB_COUNT = 6;
 
+/* Main game class */
+
 class Game : public olc::PixelGameEngine {
  public:
-  Game() { sAppName = "Insert Game Name Here"; }
+  Game() { sAppName = "Shrek tower defence"; }
 
  private:
-  struct Mob {
-    int type;
-    int x;
-    int y;
-    int direction;
-    int nextX;
-    int nextY;
-    float progress;
-    float speed;
-    float frame;
-    Mob(int givenType, int startX, int startY) {
-      x = startX;
-      y = startY;
-      type = givenType;
-      direction = 'E';
-      nextX = x + 1;
-      nextY = y;
-      progress = 0;
-      speed = 4;
-      frame = 0;
-    }
-  };
-
-  std::vector<Mob> mobs;
-
   float timer = 0;
   int frames = 0;
   int fps;
 
+  int currentTile = 2;  // Grass1.png
+
+  /* The graphics for all the tiles */
+
   olc::Sprite* tileSprites[TILE_COUNT];
   olc::Decal* tileDecals[TILE_COUNT];
-
-  int currentTile = 2;  // Grass1.png
 
   const std::string tileFiles[TILE_COUNT]{
       "bush.png",   "FarFarAway.png",  "Grass1.png", "Grass2.png", "Grass3.png",
@@ -61,29 +42,16 @@ class Game : public olc::PixelGameEngine {
       "Water.png",
   };
 
-  olc::Sprite* mobSprites[MOB_COUNT];
-  olc::Decal* mobDecals[MOB_COUNT];
-
-  const std::string mobFiles[MOB_COUNT]{
-      "DoTheRoarKid.png", "FairyGodmother.png", "knight.png",
-      "lordfarquaad.png", "Pied piper.png",     "Pied piper_s mice.png",
-  };
-
-  void loadMobGraphics() {
-    for (auto i = 0; i < MOB_COUNT; i++) {
-      mobSprites[i] = new olc::Sprite("./Baddies/" + mobFiles[i]);
-      mobDecals[i] = new olc::Decal(mobSprites[i]);
-    }
-  }
-
-  int map[MAP_WIDTH][MAP_HEIGHT][2];
-
   void loadTileGraphics() {
     for (auto i = 0; i < TILE_COUNT; i++) {
       tileSprites[i] = new olc::Sprite("./Tiles/" + tileFiles[i]);
       tileDecals[i] = new olc::Decal(tileSprites[i]);
     }
   }
+
+  /* The map that stores all the tiles and also the labels */
+
+  int map[MAP_WIDTH][MAP_HEIGHT][2];
 
   void resetMap() {
     for (auto x = 0; x < MAP_WIDTH; x++) {
@@ -131,6 +99,53 @@ class Game : public olc::PixelGameEngine {
     mapFile.close();
   }
 
+  /* The graphics for all the mobs */
+
+  olc::Sprite* mobSprites[MOB_COUNT];
+  olc::Decal* mobDecals[MOB_COUNT];
+
+  const std::string mobFiles[MOB_COUNT]{
+      "DoTheRoarKid.png", "FairyGodmother.png", "knight.png",
+      "lordfarquaad.png", "Pied piper.png",     "Pied piper_s mice.png",
+  };
+
+  void loadMobGraphics() {
+    for (auto i = 0; i < MOB_COUNT; i++) {
+      mobSprites[i] = new olc::Sprite("./Baddies/" + mobFiles[i]);
+      mobDecals[i] = new olc::Decal(mobSprites[i]);
+    }
+  }
+
+  /* Mob 'struct' - just like a class but all attributes
+     and methods are automatically public. */
+
+  struct Mob {
+    int type;
+    int x;
+    int y;
+    int direction;
+    int nextX;
+    int nextY;
+    float progress;
+    float speed;
+    float frame;
+    Mob(int givenType, int startX, int startY) {
+      x = startX;
+      y = startY;
+      type = givenType;
+      direction = 'E';
+      nextX = x + 1;
+      nextY = y;
+      progress = 0;
+      speed = 4;
+      frame = 0;
+    }
+  };
+
+  /* Vector (dynamic list) of mobs */
+
+  std::vector<Mob> mobs;
+
  public:
   bool OnUserCreate() override {
     /*
@@ -168,6 +183,8 @@ class Game : public olc::PixelGameEngine {
       Game controls goes here
     */
 
+    /* Up and down arrow change currently selected tile */
+
     if (GetKey(olc::Key::DOWN).bPressed) {
       currentTile++;
       if (currentTile > TILE_COUNT - 1) currentTile = 0;
@@ -178,6 +195,8 @@ class Game : public olc::PixelGameEngine {
       if (currentTile < 0) currentTile = TILE_COUNT - 1;
     }
 
+    /* x and y store the location in tile coordinates of the mouse cursor*/
+
     auto x = GetMouseX() / TILE_SIZE;
     auto y = GetMouseY() / TILE_SIZE;
 
@@ -186,6 +205,7 @@ class Game : public olc::PixelGameEngine {
     if (y < 0) y = 0;
     if (y > MAP_HEIGHT - 1) y = MAP_HEIGHT - 1;
 
+    /* Left mouse button (0) and right mouse button (1) */
     if (GetMouse(0).bHeld) {
       map[x][y][0] = currentTile;
     } else if (GetMouse(1).bHeld) {
@@ -218,7 +238,10 @@ class Game : public olc::PixelGameEngine {
       Game logic goes here
     */
 
+    /* Update all the mobs...*/
     for (auto i = 0; i < mobs.size();) {
+      /* First, their animation frames */
+
       mobs[i].frame += GetElapsedTime() * 10;
 
       auto frameCount = mobSprites[mobs[i].type]->width / MOB_SIZE;
@@ -226,7 +249,11 @@ class Game : public olc::PixelGameEngine {
         mobs[i].frame -= frameCount;
       }
 
+      /* Then, their progress (lerping - linear interpolation) */
+
       mobs[i].progress += GetElapsedTime() * mobs[i].speed;
+
+      /* If they reach the detination location, work out the next detination */
 
       if (mobs[i].progress > 1) {
         mobs[i].progress = 0;
@@ -241,6 +268,8 @@ class Game : public olc::PixelGameEngine {
         if (mobs[i].direction == 'W') mobs[i].nextX--;
         if (mobs[i].direction == 'E') mobs[i].nextX++;
       }
+
+      /* Delete any mobs that reach the 'B' label or have moved off the map */
 
       if (mobs[i].direction == 'B' || mobs[i].x < 0 || mobs[i].y < 0 ||
           mobs[i].x > MAP_WIDTH || mobs[i].y > MAP_HEIGHT) {
@@ -257,11 +286,16 @@ class Game : public olc::PixelGameEngine {
     /*
       Game graphics drawn here
     */
+
+    /* First, draw all the tiles */
+
     for (auto x = 0; x < MAP_WIDTH; x++) {
       for (auto y = 0; y < MAP_HEIGHT; y++) {
         auto index = map[x][y][0];
         auto position = olc::vi2d{x * TILE_SIZE, y * TILE_SIZE};
         DrawDecal(position, tileDecals[index]);
+
+        /* Add a label if needed */
         auto code = map[x][y][1];
         if (code != 0) {
           auto label = std::string(1, code);
@@ -269,6 +303,8 @@ class Game : public olc::PixelGameEngine {
         }
       }
     }
+
+    /* Then, draw all the mobs */
 
     for (auto mob : mobs) {
       auto x = mob.x + mob.progress * (mob.nextX - mob.x);
@@ -280,9 +316,12 @@ class Game : public olc::PixelGameEngine {
       DrawPartialDecal(position, size, decal, offset, size);
     }
 
+    /* Draw the currently selected tile in the bottom left */
+
     auto position = olc::vi2d{20, WINDOW_HEIGHT - TILE_SIZE - 20};
     DrawDecal(position, tileDecals[currentTile]);
 
+    /* Add an FPS display */
     if (fps > 0) {
       auto fpsPosition = olc::vi2d(WINDOW_WIDTH - 70, WINDOW_HEIGHT - 70);
       DrawStringDecal(fpsPosition, "FPS " + std::to_string(fps));
