@@ -28,6 +28,13 @@ class Game : public olc::PixelGameEngine {
 
   int currentTile = 2;  // Grass1.png
 
+  float spawnDelay = 2; 
+  float spawnTimer = spawnDelay;
+
+  enum class MODE { EDIT, PLAY };
+
+  MODE mode = MODE::PLAY;
+
   /* The graphics for all the tiles */
 
   olc::Sprite* tileSprites[TILE_COUNT];
@@ -183,54 +190,59 @@ class Game : public olc::PixelGameEngine {
       Game controls goes here
     */
 
-    /* Up and down arrow change currently selected tile */
-
-    if (GetKey(olc::Key::DOWN).bPressed) {
-      currentTile++;
-      if (currentTile > TILE_COUNT - 1) currentTile = 0;
+    if (GetKey(olc::Key::TAB).bPressed) {
+      mode = (mode == MODE::EDIT) ? MODE::PLAY : MODE::EDIT;
     }
 
-    if (GetKey(olc::Key::UP).bPressed) {
-      currentTile--;
-      if (currentTile < 0) currentTile = TILE_COUNT - 1;
+    if (mode == MODE::EDIT) {
+      /* Up and down arrow change currently selected tile */
+      if (GetKey(olc::Key::DOWN).bPressed) {
+        currentTile++;
+        if (currentTile > TILE_COUNT - 1) currentTile = 0;
+      }
+
+      if (GetKey(olc::Key::UP).bPressed) {
+        currentTile--;
+        if (currentTile < 0) currentTile = TILE_COUNT - 1;
+      }
+
+      /* x and y store the location in tile coordinates of the mouse cursor*/
+
+      auto x = GetMouseX() / TILE_SIZE;
+      auto y = GetMouseY() / TILE_SIZE;
+
+      if (x < 0) x = 0;
+      if (x > MAP_WIDTH - 1) x = MAP_WIDTH - 1;
+      if (y < 0) y = 0;
+      if (y > MAP_HEIGHT - 1) y = MAP_HEIGHT - 1;
+
+      /* Left mouse button (0) and right mouse button (1) */
+      if (GetMouse(0).bHeld) {
+        map[x][y][0] = currentTile;
+      } else if (GetMouse(1).bHeld) {
+        currentTile = map[x][y][0];
+      }
+
+      // Start and end points for enemies (known as A and B)
+      if (GetKey(olc::Key::A).bPressed) map[x][y][1] = 'A';
+      if (GetKey(olc::Key::B).bPressed) map[x][y][1] = 'B';
+
+      // Direction changes for enemies, north, south, east and west
+      if (GetKey(olc::Key::N).bPressed) map[x][y][1] = 'N';
+      if (GetKey(olc::Key::S).bPressed) map[x][y][1] = 'S';
+      if (GetKey(olc::Key::E).bPressed) map[x][y][1] = 'E';
+      if (GetKey(olc::Key::W).bPressed) map[x][y][1] = 'W';
+
+      // Delete the current label
+      if (GetKey(olc::Key::DEL).bPressed) map[x][y][1] = 0;
+
+      if (GetKey(olc::Key::K1).bPressed) mobs.push_back(Mob(0, x, y));
+      if (GetKey(olc::Key::K2).bPressed) mobs.push_back(Mob(1, x, y));
+      if (GetKey(olc::Key::K3).bPressed) mobs.push_back(Mob(2, x, y));
+      if (GetKey(olc::Key::K4).bPressed) mobs.push_back(Mob(3, x, y));
+      if (GetKey(olc::Key::K5).bPressed) mobs.push_back(Mob(4, x, y));
+      if (GetKey(olc::Key::K6).bPressed) mobs.push_back(Mob(5, x, y));
     }
-
-    /* x and y store the location in tile coordinates of the mouse cursor*/
-
-    auto x = GetMouseX() / TILE_SIZE;
-    auto y = GetMouseY() / TILE_SIZE;
-
-    if (x < 0) x = 0;
-    if (x > MAP_WIDTH - 1) x = MAP_WIDTH - 1;
-    if (y < 0) y = 0;
-    if (y > MAP_HEIGHT - 1) y = MAP_HEIGHT - 1;
-
-    /* Left mouse button (0) and right mouse button (1) */
-    if (GetMouse(0).bHeld) {
-      map[x][y][0] = currentTile;
-    } else if (GetMouse(1).bHeld) {
-      currentTile = map[x][y][0];
-    }
-
-    // Start and end points for enemies (known as A and B)
-    if (GetKey(olc::Key::A).bPressed) map[x][y][1] = 'A';
-    if (GetKey(olc::Key::B).bPressed) map[x][y][1] = 'B';
-
-    // Direction changes for enemies, north, south, east and west
-    if (GetKey(olc::Key::N).bPressed) map[x][y][1] = 'N';
-    if (GetKey(olc::Key::S).bPressed) map[x][y][1] = 'S';
-    if (GetKey(olc::Key::E).bPressed) map[x][y][1] = 'E';
-    if (GetKey(olc::Key::W).bPressed) map[x][y][1] = 'W';
-
-    // Delete the current label
-    if (GetKey(olc::Key::DEL).bPressed) map[x][y][1] = 0;
-
-    if (GetKey(olc::Key::K1).bPressed) mobs.push_back(Mob(0, x, y));
-    if (GetKey(olc::Key::K2).bPressed) mobs.push_back(Mob(1, x, y));
-    if (GetKey(olc::Key::K3).bPressed) mobs.push_back(Mob(2, x, y));
-    if (GetKey(olc::Key::K4).bPressed) mobs.push_back(Mob(3, x, y));
-    if (GetKey(olc::Key::K5).bPressed) mobs.push_back(Mob(4, x, y));
-    if (GetKey(olc::Key::K6).bPressed) mobs.push_back(Mob(5, x, y));
   }
 
   void processes() {
@@ -238,44 +250,72 @@ class Game : public olc::PixelGameEngine {
       Game logic goes here
     */
 
-    /* Update all the mobs...*/
-    for (auto i = 0; i < mobs.size();) {
-      /* First, their animation frames */
+    if (mode == MODE::PLAY) {
+      /* Spawn random mobs */
 
-      mobs[i].frame += GetElapsedTime() * 10;
+      spawnTimer -= GetElapsedTime();
 
-      auto frameCount = mobSprites[mobs[i].type]->width / MOB_SIZE;
-      if (mobs[i].frame >= frameCount) {
-        mobs[i].frame -= frameCount;
-      }
-
-      /* Then, their progress (lerping - linear interpolation) */
-
-      mobs[i].progress += GetElapsedTime() * mobs[i].speed;
-
-      /* If they reach the detination location, work out the next detination */
-
-      if (mobs[i].progress > 1) {
-        mobs[i].progress = 0;
-        mobs[i].x = mobs[i].nextX;
-        mobs[i].y = mobs[i].nextY;
-        if (map[mobs[i].x][mobs[i].y][1] != 0) {
-          mobs[i].direction = map[mobs[i].x][mobs[i].y][1];
+      if (spawnTimer <= 0) {
+        std::vector<olc::vi2d> spawnPoints;
+        for (auto x = 0; x < MAP_WIDTH; x++) {
+          for (auto y = 0; y < MAP_HEIGHT; y++) {
+            if (map[x][y][1] == 'A') {
+              spawnPoints.push_back(olc::vi2d(x, y));
+            }
+          }
         }
 
-        if (mobs[i].direction == 'N') mobs[i].nextY--;
-        if (mobs[i].direction == 'S') mobs[i].nextY++;
-        if (mobs[i].direction == 'W') mobs[i].nextX--;
-        if (mobs[i].direction == 'E') mobs[i].nextX++;
+        if (spawnPoints.size() > 0) {
+          auto t = rand() % MOB_COUNT;
+          auto p = rand() % spawnPoints.size();
+          auto x = spawnPoints[p].x;
+          auto y = spawnPoints[p].y;
+          mobs.push_back(Mob(t, x, y));
+        }
+
+        spawnTimer = spawnDelay;
       }
 
-      /* Delete any mobs that reach the 'B' label or have moved off the map */
+      /* Update all the mobs...*/
+      for (auto i = 0; i < mobs.size();) {
+        /* First, their animation frames */
 
-      if (mobs[i].direction == 'B' || mobs[i].x < 0 || mobs[i].y < 0 ||
-          mobs[i].x > MAP_WIDTH || mobs[i].y > MAP_HEIGHT) {
-        mobs.erase(mobs.begin() + i);
-      } else {
-        i++;
+        mobs[i].frame += GetElapsedTime() * 10;
+
+        auto frameCount = mobSprites[mobs[i].type]->width / MOB_SIZE;
+        if (mobs[i].frame >= frameCount) {
+          mobs[i].frame -= frameCount;
+        }
+
+        /* Then, their progress (lerping - linear interpolation) */
+
+        mobs[i].progress += GetElapsedTime() * mobs[i].speed;
+
+        /* If they reach the detination location, work out the next detination
+         */
+
+        if (mobs[i].progress > 1) {
+          mobs[i].progress = 0;
+          mobs[i].x = mobs[i].nextX;
+          mobs[i].y = mobs[i].nextY;
+          if (map[mobs[i].x][mobs[i].y][1] != 0) {
+            mobs[i].direction = map[mobs[i].x][mobs[i].y][1];
+          }
+
+          if (mobs[i].direction == 'N') mobs[i].nextY--;
+          if (mobs[i].direction == 'S') mobs[i].nextY++;
+          if (mobs[i].direction == 'W') mobs[i].nextX--;
+          if (mobs[i].direction == 'E') mobs[i].nextX++;
+        }
+
+        /* Delete any mobs that reach the 'B' label or have moved off the map */
+
+        if (mobs[i].direction == 'B' || mobs[i].x < 0 || mobs[i].y < 0 ||
+            mobs[i].x > MAP_WIDTH || mobs[i].y > MAP_HEIGHT) {
+          mobs.erase(mobs.begin() + i);
+        } else {
+          i++;
+        }
       }
     }
   }
@@ -296,10 +336,12 @@ class Game : public olc::PixelGameEngine {
         DrawDecal(position, tileDecals[index]);
 
         /* Add a label if needed */
-        auto code = map[x][y][1];
-        if (code != 0) {
-          auto label = std::string(1, code);
-          DrawStringDecal(position + olc::vi2d{13, 13}, label);
+        if (mode == MODE::EDIT) {
+          auto code = map[x][y][1];
+          if (code != 0) {
+            auto label = std::string(1, code);
+            DrawStringDecal(position + olc::vi2d{13, 13}, label);
+          }
         }
       }
     }
@@ -318,8 +360,10 @@ class Game : public olc::PixelGameEngine {
 
     /* Draw the currently selected tile in the bottom left */
 
-    auto position = olc::vi2d{20, WINDOW_HEIGHT - TILE_SIZE - 20};
-    DrawDecal(position, tileDecals[currentTile]);
+    if (mode == MODE::EDIT) {
+      auto position = olc::vi2d{20, WINDOW_HEIGHT - TILE_SIZE - 20};
+      DrawDecal(position, tileDecals[currentTile]);
+    }
 
     /* Add an FPS display */
     if (fps > 0) {
