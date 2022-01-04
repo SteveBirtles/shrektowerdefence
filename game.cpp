@@ -339,17 +339,17 @@ class Game : public olc::PixelGameEngine {
       if (spaceFree) {
         if (GetKey(olc::Key::K1).bPressed)
           towers.push_back(Tower(0, x, y, 1, 0));
-        if (GetKey(olc::Key::K2).bPressed)
+        else if (GetKey(olc::Key::K2).bPressed)
           towers.push_back(Tower(1, x, y, 1, 1));
-        if (GetKey(olc::Key::K3).bPressed)
+        else if (GetKey(olc::Key::K3).bPressed)
           towers.push_back(Tower(2, x, y, 1, 2));
-        if (GetKey(olc::Key::K4).bPressed)
+        else if (GetKey(olc::Key::K4).bPressed)
           towers.push_back(Tower(3, x, y, 1, 3));
-        if (GetKey(olc::Key::K5).bPressed)
+        else if (GetKey(olc::Key::K5).bPressed)
           towers.push_back(Tower(4, x, y, 1, 4));
-        if (GetKey(olc::Key::K6).bPressed)
+        else if (GetKey(olc::Key::K6).bPressed)
           towers.push_back(Tower(5, x, y, 1, 5));
-        if (GetKey(olc::Key::K7).bPressed)
+        else if (GetKey(olc::Key::K7).bPressed)
           towers.push_back(Tower(6, x, y, 1, 6));
       }
     }
@@ -391,7 +391,6 @@ class Game : public olc::PixelGameEngine {
         /* First, their animation frames */
 
         mobs[i].frame += GetElapsedTime() * 10;
-
         auto frameCount = mobSprites[mobs[i].type]->width / MOB_SIZE;
         if (mobs[i].frame >= frameCount) {
           mobs[i].frame -= frameCount;
@@ -434,32 +433,35 @@ class Game : public olc::PixelGameEngine {
       // Can't use a range loop (i.e. auto tower: towers)
       // because we want to change the items.
 
-      towers[i].reloadTimer -= GetElapsedTime();
       towers[i].frame += GetElapsedTime() * 10;
       auto frameCount = towerSprites[towers[i].type]->width / TOWER_SIZE;
       if (towers[i].frame >= frameCount) {
         towers[i].frame -= frameCount;
       }
 
-      if (towers[i].reloadTimer <= 0 && mobs.size() > 0) {
-        olc::vf2d launchVelocity;
-        float closestDistance = 9999;
-        for (auto mob : mobs) {
-          float dx = mob.x - towers[i].x;
-          float dy = mob.y - towers[i].y;
-          float distance = sqrt(pow(dx, 2) + pow(dy, 2));
-          if (distance < closestDistance) {
-            launchVelocity = 200.0 * olc::vf2d(dx, dy) / distance;
-            closestDistance = distance;
+      if (mobs.size() > 0) {
+        towers[i].reloadTimer -= GetElapsedTime();
+
+        if (towers[i].reloadTimer <= 0) {
+          olc::vf2d launchVelocity;
+          float closestDistance = 9999;
+          for (auto mob : mobs) {
+            float dx = mob.x - towers[i].x;
+            float dy = mob.y - towers[i].y;
+            float distance = sqrt(pow(dx, 2) + pow(dy, 2));
+            if (distance < closestDistance) {
+              launchVelocity = 200.0 * olc::vf2d(dx, dy) / distance;
+              closestDistance = distance;
+            }
           }
+
+          projectiles.push_back(Projectile(
+              towers[i].projectileType,
+              olc::vf2d(towers[i].x * TILE_SIZE, towers[i].y * TILE_SIZE),
+              launchVelocity));
+
+          towers[i].reloadTimer += towers[i].reloadDelay;
         }
-
-        projectiles.push_back(Projectile(
-            towers[i].projectileType,
-            olc::vf2d(towers[i].x * TILE_SIZE, towers[i].y * TILE_SIZE),
-            launchVelocity));
-
-        towers[i].reloadTimer += towers[i].reloadDelay;
       }
     }
 
