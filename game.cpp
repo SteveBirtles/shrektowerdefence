@@ -19,7 +19,7 @@ const int TOWER_SIZE = 32;
 const int TOWER_COUNT = 7;
 
 const int PROJECTILE_SIZE = 16;
-const int PROJECTILE_COUNT = 9;
+const int PROJECTILE_COUNT = 7;
 
 /* Main game class */
 
@@ -186,9 +186,9 @@ class Game : public olc::PixelGameEngine {
   olc::Decal* projectileDecals[PROJECTILE_COUNT];
 
   const std::string projectileFiles[PROJECTILE_COUNT]{
-      "Boot_throw.png", "donkeydragon.png", "fireball.png",
-      "Javelin.png",    "lollipop.png",     "magic.png",
-      "mirror.png",     "onion.png",        "smashmMouthSpit.png",
+      "donkeydragon.png",    "fireball.png", "lollipop.png",
+      "Boot_throw.png",      "magic.png",    "onion.png",
+      "smashmMouthSpit.png",
   };
 
   struct Projectile {
@@ -267,7 +267,14 @@ class Game : public olc::PixelGameEngine {
     */
 
     if (GetKey(olc::Key::TAB).bPressed) {
-      mode = (mode == MODE::EDIT) ? MODE::PLAY : MODE::EDIT;
+      if (mode == MODE::EDIT) {
+        mode = MODE::PLAY;
+      } else {
+        mobs.clear();
+        projectiles.clear();
+        towers.clear();
+        mode = MODE::EDIT;
+      }
     }
 
     /* x and y store the location in tile coordinates of the mouse cursor*/
@@ -320,13 +327,31 @@ class Game : public olc::PixelGameEngine {
       if (GetKey(olc::Key::K6).bPressed) mobs.push_back(Mob(5, x, y));
 
     } else {
-      if (GetKey(olc::Key::K1).bPressed) towers.push_back(Tower(0, x, y, 1, 0));
-      if (GetKey(olc::Key::K2).bPressed) towers.push_back(Tower(1, x, y, 1, 1));
-      if (GetKey(olc::Key::K3).bPressed) towers.push_back(Tower(2, x, y, 1, 2));
-      if (GetKey(olc::Key::K4).bPressed) towers.push_back(Tower(3, x, y, 1, 3));
-      if (GetKey(olc::Key::K5).bPressed) towers.push_back(Tower(4, x, y, 1, 4));
-      if (GetKey(olc::Key::K6).bPressed) towers.push_back(Tower(5, x, y, 1, 5));
-      if (GetKey(olc::Key::K7).bPressed) towers.push_back(Tower(6, x, y, 1, 6));
+      bool spaceFree = true;
+
+      for (auto tower : towers) {
+        if (tower.x == x && tower.y == y) {
+          spaceFree = false;
+          break;
+        }
+      }
+
+      if (spaceFree) {
+        if (GetKey(olc::Key::K1).bPressed)
+          towers.push_back(Tower(0, x, y, 1, 0));
+        if (GetKey(olc::Key::K2).bPressed)
+          towers.push_back(Tower(1, x, y, 1, 1));
+        if (GetKey(olc::Key::K3).bPressed)
+          towers.push_back(Tower(2, x, y, 1, 2));
+        if (GetKey(olc::Key::K4).bPressed)
+          towers.push_back(Tower(3, x, y, 1, 3));
+        if (GetKey(olc::Key::K5).bPressed)
+          towers.push_back(Tower(4, x, y, 1, 4));
+        if (GetKey(olc::Key::K6).bPressed)
+          towers.push_back(Tower(5, x, y, 1, 5));
+        if (GetKey(olc::Key::K7).bPressed)
+          towers.push_back(Tower(6, x, y, 1, 6));
+      }
     }
   }
 
@@ -406,8 +431,10 @@ class Game : public olc::PixelGameEngine {
 
     /* Update all the towers...*/
     for (auto i = 0; i < towers.size(); i++) {
-      towers[i].reloadTimer -= GetElapsedTime();
+      // Can't use a range loop (i.e. auto tower: towers)
+      // because we want to change the items.
 
+      towers[i].reloadTimer -= GetElapsedTime();
       towers[i].frame += GetElapsedTime() * 10;
       auto frameCount = towerSprites[towers[i].type]->width / TOWER_SIZE;
       if (towers[i].frame >= frameCount) {
@@ -417,9 +444,9 @@ class Game : public olc::PixelGameEngine {
       if (towers[i].reloadTimer <= 0 && mobs.size() > 0) {
         olc::vf2d launchVelocity;
         float closestDistance = 9999;
-        for (auto j = 0; j < mobs.size(); j++) {
-          float dx = mobs[j].x - towers[i].x;
-          float dy = mobs[j].y - towers[i].y;
+        for (auto mob : mobs) {
+          float dx = mob.x - towers[i].x;
+          float dy = mob.y - towers[i].y;
           float distance = sqrt(pow(dx, 2) + pow(dy, 2));
           if (distance < closestDistance) {
             launchVelocity = 200.0 * olc::vf2d(dx, dy) / distance;
@@ -448,11 +475,32 @@ class Game : public olc::PixelGameEngine {
 
       projectiles[i].position += projectiles[i].velocity * GetElapsedTime();
 
-      if (projectiles[i].position.x < -PROJECTILE_SIZE ||
-          projectiles[i].position.y < -PROJECTILE_SIZE ||
-          projectiles[i].position.x > MAP_WIDTH * TILE_SIZE + PROJECTILE_SIZE ||
-          projectiles[i].position.y >
-              MAP_HEIGHT * TILE_SIZE + PROJECTILE_SIZE) {
+      bool collides = false;
+
+      float projx1 = projectiles[i].position.x;
+      float projy1 = projectiles[i].position.y;
+      float projx2 = projx1 + PROJECTILE_SIZE;
+      float projy2 = projy1 + PROJECTILE_SIZE;
+
+      for (auto j = 0; j < mobs.size(); j++) {
+        float mobx1 = TILE_SIZE * (mobs[j].x + mobs[j].progress *
+                                                   (mobs[j].nextX - mobs[j].x));
+        float moby1 = TILE_SIZE * (mobs[j].y + mobs[j].progress *
+                                                   (mobs[j].nextY - mobs[j].y));
+        float mobx2 = mobx1 + MOB_SIZE;
+        float moby2 = moby1 + MOB_SIZE;
+
+        if (mobx1 < projx2 && moby1 < projy2 && mobx2 > projx1 &&
+            moby2 > projy1) {
+          collides = true;
+          mobs.erase(mobs.begin() + j);
+          break;
+        }
+      }
+
+      if (collides || projx1 < -PROJECTILE_SIZE || projy1 < -PROJECTILE_SIZE ||
+          projx1 > MAP_WIDTH * TILE_SIZE + PROJECTILE_SIZE ||
+          projy1 > MAP_HEIGHT * TILE_SIZE + PROJECTILE_SIZE) {
         projectiles.erase(projectiles.begin() + i);
       } else {
         i++;
