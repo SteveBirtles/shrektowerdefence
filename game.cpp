@@ -34,9 +34,6 @@ class Game : public olc::PixelGameEngine {
 
   int currentTile = 2;  // Grass1.png
 
-  float spawnDelay = 2;
-  float spawnTimer = spawnDelay;
-
   enum class MODE { EDIT, PLAY };
 
   MODE mode = MODE::PLAY;
@@ -145,7 +142,12 @@ class Game : public olc::PixelGameEngine {
 
   std::vector<Mob> mobs;
 
-  /* The graphics for towers */
+  /* Variables to control mob spawning */
+
+  float spawnDelay = 2;
+  float spawnTimer = spawnDelay;
+
+  /* The graphics, struct and vector for towers */
 
   olc::Sprite* towerSprites[TOWER_COUNT];
   olc::Decal* towerDecals[TOWER_COUNT];
@@ -176,11 +178,9 @@ class Game : public olc::PixelGameEngine {
     }
   };
 
-  /* Vector (dynamic list) of mobs */
-
   std::vector<Tower> towers;
 
-  /* The graphics for projectiles */
+  /* The graphics, struct and vector for projectiles */
 
   olc::Sprite* projectileSprites[PROJECTILE_COUNT];
   olc::Decal* projectileDecals[PROJECTILE_COUNT];
@@ -206,6 +206,24 @@ class Game : public olc::PixelGameEngine {
   };
 
   std::vector<Projectile> projectiles;
+
+  /* General functions for loading and deleting graphics (resource management)
+   */
+
+  void loadGraphics(int count, olc::Sprite* sprites[], olc::Decal* decals[],
+                    const std::string files[], std::string path) {
+    for (auto i = 0; i < count; i++) {
+      sprites[i] = new olc::Sprite(path + files[i]);
+      decals[i] = new olc::Decal(sprites[i]);
+    }
+  }
+
+  void deleteGraphics(int count, olc::Sprite* sprites[], olc::Decal* decals[]) {
+    for (auto i = 0; i < count; i++) {
+      delete sprites[i];
+      delete decals[i];
+    }
+  }
 
  public:
   bool OnUserCreate() override {
@@ -240,24 +258,6 @@ class Game : public olc::PixelGameEngine {
       return false;
     } else {
       return true;
-    }
-  }
-
-  /* Functions for loading and deleting graphics (resource management)
-   */
-
-  void loadGraphics(int count, olc::Sprite* sprites[], olc::Decal* decals[],
-                    const std::string files[], std::string path) {
-    for (auto i = 0; i < count; i++) {
-      sprites[i] = new olc::Sprite(path + files[i]);
-      decals[i] = new olc::Decal(sprites[i]);
-    }
-  }
-
-  void deleteGraphics(int count, olc::Sprite* sprites[], olc::Decal* decals[]) {
-    for (auto i = 0; i < count; i++) {
-      delete sprites[i];
-      delete decals[i];
     }
   }
 
@@ -319,6 +319,7 @@ class Game : public olc::PixelGameEngine {
       // Delete the current label
       if (GetKey(olc::Key::DEL).bPressed) map[x][y][1] = 0;
 
+      // Place mobs (for testing purposes)
       if (GetKey(olc::Key::K1).bPressed) mobs.push_back(Mob(0, x, y));
       if (GetKey(olc::Key::K2).bPressed) mobs.push_back(Mob(1, x, y));
       if (GetKey(olc::Key::K3).bPressed) mobs.push_back(Mob(2, x, y));
@@ -327,6 +328,8 @@ class Game : public olc::PixelGameEngine {
       if (GetKey(olc::Key::K6).bPressed) mobs.push_back(Mob(5, x, y));
 
     } else {
+      // Place towers (in play mode) if space is free
+
       bool spaceFree = true;
 
       for (auto tower : towers) {
@@ -396,7 +399,7 @@ class Game : public olc::PixelGameEngine {
           mobs[i].frame -= frameCount;
         }
 
-        /* Then, their progress (lerping - linear interpolation) */
+        /* Then, update their progress (lerping - linear interpolation) */
 
         mobs[i].progress += GetElapsedTime() * mobs[i].speed;
 
@@ -423,6 +426,7 @@ class Game : public olc::PixelGameEngine {
             mobs[i].x > MAP_WIDTH || mobs[i].y > MAP_HEIGHT) {
           mobs.erase(mobs.begin() + i);
         } else {
+          // If not deleted, increment i
           i++;
         }
       }
@@ -430,14 +434,17 @@ class Game : public olc::PixelGameEngine {
 
     /* Update all the towers...*/
     for (auto i = 0; i < towers.size(); i++) {
-      // Can't use a range loop (i.e. auto tower: towers)
-      // because we want to change the items.
+      // We can include i++ this time as we aren't planning on deleting any
+      // towers
 
       towers[i].frame += GetElapsedTime() * 10;
       auto frameCount = towerSprites[towers[i].type]->width / TOWER_SIZE;
       if (towers[i].frame >= frameCount) {
         towers[i].frame -= frameCount;
       }
+
+      /* If there are any mobs and the reload timer is zero, spawn a projectile
+       */
 
       if (mobs.size() > 0) {
         towers[i].reloadTimer -= GetElapsedTime();
@@ -467,6 +474,8 @@ class Game : public olc::PixelGameEngine {
 
     /* Update all the projectiles...*/
     for (auto i = 0; i < projectiles.size();) {
+      // Note we haven't included i++ since we will need to delete some
+      // projectiles
       projectiles[i].frame += GetElapsedTime() * 10;
 
       auto frameCount =
@@ -476,6 +485,8 @@ class Game : public olc::PixelGameEngine {
       }
 
       projectiles[i].position += projectiles[i].velocity * GetElapsedTime();
+
+      /* Collision detection between projectiles and mobs */
 
       bool collides = false;
 
@@ -492,6 +503,8 @@ class Game : public olc::PixelGameEngine {
         float mobx2 = mobx1 + MOB_SIZE;
         float moby2 = moby1 + MOB_SIZE;
 
+        // If a collision occurs, delete the mob that was hit
+
         if (mobx1 < projx2 && moby1 < projy2 && mobx2 > projx1 &&
             moby2 > projy1) {
           collides = true;
@@ -499,6 +512,8 @@ class Game : public olc::PixelGameEngine {
           break;
         }
       }
+
+      // Delete any projectiles that have collided with mobs or gone off the map
 
       if (collides || projx1 < -PROJECTILE_SIZE || projy1 < -PROJECTILE_SIZE ||
           projx1 > MAP_WIDTH * TILE_SIZE + PROJECTILE_SIZE ||
