@@ -270,6 +270,16 @@ class Game : public olc::PixelGameEngine {
       mode = (mode == MODE::EDIT) ? MODE::PLAY : MODE::EDIT;
     }
 
+    /* x and y store the location in tile coordinates of the mouse cursor*/
+
+    auto x = GetMouseX() / TILE_SIZE;
+    auto y = GetMouseY() / TILE_SIZE;
+
+    if (x < 0) x = 0;
+    if (x > MAP_WIDTH - 1) x = MAP_WIDTH - 1;
+    if (y < 0) y = 0;
+    if (y > MAP_HEIGHT - 1) y = MAP_HEIGHT - 1;
+
     if (mode == MODE::EDIT) {
       /* Up and down arrow change currently selected tile */
       if (GetKey(olc::Key::DOWN).bPressed) {
@@ -281,16 +291,6 @@ class Game : public olc::PixelGameEngine {
         currentTile--;
         if (currentTile < 0) currentTile = TILE_COUNT - 1;
       }
-
-      /* x and y store the location in tile coordinates of the mouse cursor*/
-
-      auto x = GetMouseX() / TILE_SIZE;
-      auto y = GetMouseY() / TILE_SIZE;
-
-      if (x < 0) x = 0;
-      if (x > MAP_WIDTH - 1) x = MAP_WIDTH - 1;
-      if (y < 0) y = 0;
-      if (y > MAP_HEIGHT - 1) y = MAP_HEIGHT - 1;
 
       /* Left mouse button (0) and right mouse button (1) */
       if (GetMouse(0).bHeld) {
@@ -318,6 +318,15 @@ class Game : public olc::PixelGameEngine {
       if (GetKey(olc::Key::K4).bPressed) mobs.push_back(Mob(3, x, y));
       if (GetKey(olc::Key::K5).bPressed) mobs.push_back(Mob(4, x, y));
       if (GetKey(olc::Key::K6).bPressed) mobs.push_back(Mob(5, x, y));
+
+    } else {
+      if (GetKey(olc::Key::K1).bPressed) towers.push_back(Tower(0, x, y, 1, 0));
+      if (GetKey(olc::Key::K2).bPressed) towers.push_back(Tower(1, x, y, 1, 1));
+      if (GetKey(olc::Key::K3).bPressed) towers.push_back(Tower(2, x, y, 1, 2));
+      if (GetKey(olc::Key::K4).bPressed) towers.push_back(Tower(3, x, y, 1, 3));
+      if (GetKey(olc::Key::K5).bPressed) towers.push_back(Tower(4, x, y, 1, 4));
+      if (GetKey(olc::Key::K6).bPressed) towers.push_back(Tower(5, x, y, 1, 5));
+      if (GetKey(olc::Key::K7).bPressed) towers.push_back(Tower(6, x, y, 1, 6));
     }
   }
 
@@ -394,6 +403,61 @@ class Game : public olc::PixelGameEngine {
         }
       }
     }
+
+    /* Update all the towers...*/
+    for (auto i = 0; i < towers.size(); i++) {
+      towers[i].reloadTimer -= GetElapsedTime();
+
+      towers[i].frame += GetElapsedTime() * 10;
+      auto frameCount = towerSprites[towers[i].type]->width / TOWER_SIZE;
+      if (towers[i].frame >= frameCount) {
+        towers[i].frame -= frameCount;
+      }
+
+      if (towers[i].reloadTimer <= 0 && mobs.size() > 0) {
+        olc::vf2d launchVelocity;
+        float closestDistance = 9999;
+        for (auto j = 0; j < mobs.size(); j++) {
+          float dx = mobs[j].x - towers[i].x;
+          float dy = mobs[j].y - towers[i].y;
+          float distance = sqrt(pow(dx, 2) + pow(dy, 2));
+          if (distance < closestDistance) {
+            launchVelocity = 200.0 * olc::vf2d(dx, dy) / distance;
+            closestDistance = distance;
+          }
+        }
+
+        projectiles.push_back(Projectile(
+            towers[i].projectileType,
+            olc::vf2d(towers[i].x * TILE_SIZE, towers[i].y * TILE_SIZE),
+            launchVelocity));
+
+        towers[i].reloadTimer += towers[i].reloadDelay;
+      }
+    }
+
+    /* Update all the projectiles...*/
+    for (auto i = 0; i < projectiles.size();) {
+      projectiles[i].frame += GetElapsedTime() * 10;
+
+      auto frameCount =
+          projectileSprites[projectiles[i].type]->width / PROJECTILE_SIZE;
+      if (projectiles[i].frame >= frameCount) {
+        projectiles[i].frame -= frameCount;
+      }
+
+      projectiles[i].position += projectiles[i].velocity * GetElapsedTime();
+
+      if (projectiles[i].position.x < -PROJECTILE_SIZE ||
+          projectiles[i].position.y < -PROJECTILE_SIZE ||
+          projectiles[i].position.x > MAP_WIDTH * TILE_SIZE + PROJECTILE_SIZE ||
+          projectiles[i].position.y >
+              MAP_HEIGHT * TILE_SIZE + PROJECTILE_SIZE) {
+        projectiles.erase(projectiles.begin() + i);
+      } else {
+        i++;
+      }
+    }
   }
 
   void outputs() {
@@ -431,6 +495,26 @@ class Game : public olc::PixelGameEngine {
       auto decal = mobDecals[mob.type];
       auto offset = olc::vi2d{MOB_SIZE * int(mob.frame), 0};
       auto size = olc::vi2d{MOB_SIZE, MOB_SIZE};
+      DrawPartialDecal(position, size, decal, offset, size);
+    }
+
+    /* Then, draw all the towers */
+
+    for (auto tower : towers) {
+      auto position = olc::vi2d{tower.x * TILE_SIZE, tower.y * TILE_SIZE};
+      auto decal = towerDecals[tower.type];
+      auto offset = olc::vi2d{TOWER_SIZE * int(tower.frame), 0};
+      auto size = olc::vi2d{TOWER_SIZE, TOWER_SIZE};
+      DrawPartialDecal(position, size, decal, offset, size);
+    }
+
+    /* Then, draw all the projectiles */
+
+    for (auto projectile : projectiles) {
+      auto decal = projectileDecals[projectile.type];
+      auto offset = olc::vi2d{PROJECTILE_SIZE * int(projectile.frame), 0};
+      auto size = olc::vi2d{PROJECTILE_SIZE, PROJECTILE_SIZE};
+      auto position = projectile.position - size / 2;
       DrawPartialDecal(position, size, decal, offset, size);
     }
 
